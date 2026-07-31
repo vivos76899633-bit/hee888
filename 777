@@ -1,0 +1,112 @@
+-- ดึง Rayfield Library มาใช้งาน
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- สร้าง Window สำหรับ UI
+local Window = Rayfield:CreateWindow({
+    Name = "Fly Menu",
+    LoadingTitle = "Roblox Fly Script",
+    LoadingSubtitle = "Simple Fly Control",
+    ConfigurationSaving = {
+        Enabled = false
+    }
+})
+
+-- สร้าง Tab หลัก
+local Tab = Window:CreateTab("Main", 4483362458)
+
+-- ตัวแปรตั้งค่าระบบบิน
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+local flying = false
+local flySpeed = 50 -- ค่าความเร็วเริ่มต้น
+local bodyVelocity, bodyGyro
+local renderConnection
+
+-- ฟังก์ชันเริ่มบิน
+local function startFlying()
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+
+    if not humanoidRootPart or not humanoid then return end
+
+    bodyGyro = Instance.new("BodyGyro")
+    bodyGyro.P = 9e4
+    bodyGyro.MaxTorque = Vector3.new(9e9, 9e9, 9e9)
+    bodyGyro.CFrame = humanoidRootPart.CFrame
+    bodyGyro.Parent = humanoidRootPart
+
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    bodyVelocity.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+    bodyVelocity.Parent = humanoidRootPart
+
+    humanoid.PlatformStand = true
+
+    renderConnection = RunService.RenderStepped:Connect(function()
+        if not flying or not humanoidRootPart then return end
+        
+        local camera = workspace.CurrentCamera
+        local moveVector = Vector3.new()
+
+        if humanoid.MoveDirection.Magnitude > 0 then
+            moveVector = camera.CFrame:VectorToWorldSpace(humanoid.MoveDirection)
+        end
+
+        bodyGyro.CFrame = camera.CFrame
+        bodyVelocity.Velocity = moveVector * flySpeed
+    end)
+end
+
+-- ฟังก์ชันหยุดบิน
+local function stopFlying()
+    if renderConnection then renderConnection:Disconnect() end
+    
+    local character = LocalPlayer.Character
+    if character then
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid then humanoid.PlatformStand = false end
+    end
+
+    if bodyGyro then bodyGyro:Destroy() end
+    if bodyVelocity then bodyVelocity:Destroy() end
+end
+
+-- ================= UI ELEMENTS =================
+
+-- 1. ปุ่มเปิด/ปิด การบิน
+local FlyToggle = Tab:CreateToggle({
+    Name = "เปิด/ปิด บิน (Fly)",
+    CurrentValue = false,
+    Flag = "FlyToggle",
+    Callback = function(Value)
+        flying = Value
+        if flying then
+            startFlying()
+        else
+            stopFlying()
+        end
+    end,
+})
+
+-- 2. ตัวปรับความเร็วในการบิน
+local SpeedSlider = Tab:CreateSlider({
+    Name = "ความเร็วในการบิน (Fly Speed)",
+    Range = {10, 300},
+    Increment = 5,
+    Suffix = " Speed",
+    CurrentValue = 50,
+    Flag = "FlySpeedSlider",
+    Callback = function(Value)
+        flySpeed = Value
+    end,
+})
+
+-- รีเซ็ตการบินเมื่อตัวละครเกิดใหม่
+LocalPlayer.CharacterAdded:Connect(function()
+    flying = false
+    FlyToggle:Set(false)
+    stopFlying()
+end)
